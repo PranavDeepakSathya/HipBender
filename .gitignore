@@ -39,3 +39,16 @@
 
 # debug information files
 *.dwo
+# ROCm/HIP
+*.hip.o
+*.hsaco
+build/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.so
+venv/
+.venv/
