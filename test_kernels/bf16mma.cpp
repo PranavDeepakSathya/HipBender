@@ -18,10 +18,9 @@ static constexpr int wavefront_size = 64;
 //so its all good, I am the TV LAYOUT MASTER I write (threadxvalue)->(tile_coord) seperately 
 // then tile_coord -> layout (via stride can be done)
 
-using bf16_t = __hip_bfloat16;
-
-using bf16x4_t = __attribute__((vector_size(4 * sizeof(bf16_t)))) bf16_t;
-using fp32x4_t = __attribute__((vector_size(4 * sizeof(float)))) float;
+typedef __bf16 bf16_t;
+typedef __bf16 bf16x4_t __attribute__((ext_vector_type(4)));
+typedef float fp32x4_t __attribute__((ext_vector_type(4)));
 
 
 __global__ void matmul(const bf16_t* A, const bf16_t* B, float* C)
@@ -45,9 +44,9 @@ __global__ void matmul(const bf16_t* A, const bf16_t* B, float* C)
   //but here we are deliberately being slick and choosing layouts so that each gap dimension is major 
 
   a_reg = *reinterpret_cast<const bf16x4_t*>(A + (a_row * mma_k + a_col_thread));
-  b_reg = *reinterpret_cast<const bf16x4_t*>(B + (b_row_thread * mma_n + b_col));
-  c_reg = __builtin_amdgcn_mfma_f32_16x16x16_bf16(a_reg, b_reg, c_reg, 0, 0, 0);
-  *reinterpret_cast<fp32x4_t*>(C + (c_row_thread * mma_m + c_col)) = c_reg;
+  b_reg = *reinterpret_cast<const bf16x4_t*>(B + (b_col * mma_k + b_row_thread));
+  c_reg = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(a_reg, b_reg, c_reg, 0, 0, 0);
+  *reinterpret_cast<fp32x4_t*>(C + (c_col*mma_m + c_row_thread)) = c_reg;
 }
 
 int main()
@@ -69,9 +68,9 @@ int main()
     for (int n = 0; n < mma_n; n++) {
       float sum = 0.0f;
       for (int k = 0; k < mma_k; k++) {
-        sum += h_A[m * mma_k + k] * h_B[k * mma_n + n];
+        sum += h_A[m * mma_k + k] * h_B[k + n*mma_k];
       }
-      h_C_ref[m * mma_m + n] = sum;
+      h_C_ref[m + n*mma_m] = sum;
     }
   }
 
@@ -93,7 +92,10 @@ int main()
   hipMemcpy(d_A, h_A_bf16, mma_m * mma_k * sizeof(__hip_bfloat16), hipMemcpyHostToDevice);
   hipMemcpy(d_B, h_B_bf16, mma_k * mma_n * sizeof(__hip_bfloat16), hipMemcpyHostToDevice);
 
-  hipLaunchKernelGGL(matmul, dim3(1), dim3(wavefront_size), 0, 0, d_A, d_B, d_C);
+  hipLaunchKernelGGL(matmul, dim3(1), dim3(wavefront_size), 0, 0,
+    reinterpret_cast<const bf16_t*>(d_A),
+    reinterpret_cast<const bf16_t*>(d_B),
+    d_C);
   hipDeviceSynchronize();
 
   hipMemcpy(h_C, d_C, mma_m * mma_n * sizeof(float), hipMemcpyDeviceToHost);
