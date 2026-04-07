@@ -5,22 +5,22 @@
 #include <math.h>
 
 
-static constexpr int M = 4096; 
-static constexpr int K = 4096; 
-static constexpr int N = 4096; 
+static constexpr int M = 8192; 
+static constexpr int K = 8192; 
+static constexpr int N = 8192; 
 static constexpr int mma_m = 16; 
 static constexpr int mma_n = 16; 
 static constexpr int mma_k = 16; 
 static constexpr int wavefront_size = 64;
-static constexpr int acc_per_warp_m = 2; 
-static constexpr int acc_per_warp_n = 2; 
-static constexpr int wpb_m = 2; 
-static constexpr int wpb_n = 2; 
+static constexpr int acc_per_warp_m = 4; 
+static constexpr int acc_per_warp_n = 4; 
+static constexpr int wpb_m = 4; 
+static constexpr int wpb_n = 4; 
 static constexpr int WM = mma_m*acc_per_warp_m;  
 static constexpr int WN = mma_n*acc_per_warp_n;
 static constexpr int BM = WM*wpb_m; 
 static constexpr int BN = WN*wpb_n; 
-static constexpr int BK = 64; 
+static constexpr int BK = 32; 
 static constexpr int block_size = wpb_m*wpb_n*wavefront_size;
 static constexpr int GM = M/BM; 
 static constexpr int GN = N/BN; 
