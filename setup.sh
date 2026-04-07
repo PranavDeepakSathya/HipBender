@@ -6,5 +6,7 @@ pip install numpy jupyter_client ipykernel ipywidgets
 pip install matplotlib pandas
 pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm7.0
 pip install triton
+pip install ninja
+
 git config --global user.email sathya.pranav.deepak@gmail.com
 git config --global user.name PranavDeepakSathya
