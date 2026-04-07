@@ -45,6 +45,7 @@ __global__ void matmul(const bf16_t* A, const bf16_t* B, float* C)
 
   a_reg = *reinterpret_cast<const bf16x4_t*>(A + (a_row * mma_k + a_col_thread));
   b_reg = *reinterpret_cast<const bf16x4_t*>(B + (b_col * mma_k + b_row_thread));
+  __builtin_amdgcn_s_waitcnt(0); //not needed just testing shit out man 
   c_reg = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(a_reg, b_reg, c_reg, 0, 0, 0);
   *reinterpret_cast<fp32x4_t*>(C + (c_col*mma_m + c_row_thread)) = c_reg;
 }
