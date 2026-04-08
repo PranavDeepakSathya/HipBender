@@ -30,10 +30,7 @@ static constexpr int rest_threads = (block_size)/bk_threads;
 static constexpr int BM_load_iters = BM/rest_threads; 
 static constexpr int BN_load_iters = BN/rest_threads;
 
-static constexpr uint32_t b_bits = __builtin_ctz(BK * sizeof(__bf16)) - 4;
-static constexpr uint32_t m_base = 4;
-static constexpr uint32_t s_shift = 4;
-
+static constexpr int pack_size = 8;
 static_assert((BM * BK / 8) % block_size == 0);
 static_assert((BN * BK / 8) % block_size == 0);
 
@@ -42,12 +39,12 @@ typedef __bf16 bf16x4_t __attribute__((ext_vector_type(4)));
 typedef float fp32x4_t __attribute__((ext_vector_type(4)));
 typedef __bf16 bf16x8_t __attribute__((ext_vector_type(8)));
 
-template <int BBits, int MBase, int SShift>
+template <int PackSize>
 __device__ __forceinline__
-uint32_t swizzle(uint32_t byte_off) {
-  static_assert(SShift >= BBits, "SShift must be >= BBits");
-  constexpr uint32_t mask = ((1u << BBits) - 1u) << (MBase + SShift);
-  return byte_off ^ ((byte_off & mask) >> SShift);
+int ck_swizzle(int row, int col, int num_cols) {
+    int col_group = col / PackSize;
+    int col_xor = col_group ^ (row % (num_cols / PackSize));
+    return row * num_cols + col_xor * PackSize + (col % PackSize);
 }
 
 
@@ -91,14 +88,14 @@ __global__ void matmul(bf16_t*A, bf16_t*B, float*C)
   {
     for (int m_start = 0; m_start < BM; m_start += rest_threads)
     {
-      uint32_t As_off = swizzle<b_bits,m_base,s_shift>(((m_start + inner_m_n_idx)*BK + inner_k_idx)*sizeof(__bf16));
-      *reinterpret_cast<bf16x8_t*>((char*)As + As_off)
+      int off = ck_swizzle<8>(m_start + inner_m_n_idx, inner_k_idx, BK);
+      *reinterpret_cast<bf16x8_t*>(As + off)
       = *reinterpret_cast<bf16x8_t*>(&A[(m_start + inner_m_n_idx)*K + inner_k_idx]);
     }
     for (int n_start = 0; n_start < BN; n_start += rest_threads)
     {
-      uint32_t Bs_off = swizzle<b_bits,m_base,s_shift>(((n_start + inner_m_n_idx)*BK + inner_k_idx)*sizeof(__bf16));
-      *reinterpret_cast<bf16x8_t*>((char*)Bs + Bs_off)
+      int off = ck_swizzle<8>(n_start + inner_m_n_idx, inner_k_idx, BK);
+      *reinterpret_cast<bf16x8_t*>(Bs + off)
       = *reinterpret_cast<bf16x8_t*>(&B[(n_start + inner_m_n_idx)*K + inner_k_idx]);
     }
     __syncthreads();
@@ -107,18 +104,18 @@ __global__ void matmul(bf16_t*A, bf16_t*B, float*C)
     {
       for (int m = 0; m < acc_per_warp_m; m++)
       {
-        int a_row = warp_start_m + m*mma_m + a_lane_row; 
-        int a_col = k*mma_k + a_lane_col; 
-        uint32_t As_off = swizzle<b_bits,m_base,s_shift>((a_row*BK + a_col)*sizeof(__bf16));
-        a_reg[m] = *reinterpret_cast<const bf16x4_t*>((char*)As + As_off);
+        int a_row = warp_start_m + m*mma_m + a_lane_row;
+        int a_col = k*mma_k + a_lane_col;
+        int off = ck_swizzle<8>(a_row, a_col, BK);
+        a_reg[m] = *reinterpret_cast<const bf16x4_t*>(As + off);
       }
 
       for (int n = 0; n < acc_per_warp_n; n++)
       {
-        int b_row = k*mma_k + b_lane_row; 
-        int b_col = warp_start_n + n*mma_n + b_lane_col; 
-        uint32_t Bs_off = swizzle<b_bits,m_base,s_shift>((b_col*BK + b_row)*sizeof(__bf16));
-        b_reg[n] = *reinterpret_cast<const bf16x4_t*>((char*)Bs + Bs_off);
+        int b_row = k*mma_k + b_lane_row;
+        int b_col = warp_start_n + n*mma_n + b_lane_col;
+        int off = ck_swizzle<8>(b_col, b_row, BK);
+        b_reg[n] = *reinterpret_cast<const bf16x4_t*>(Bs + off);
       }
 
       for (int m = 0; m < acc_per_warp_m; m++)
@@ -128,13 +125,12 @@ __global__ void matmul(bf16_t*A, bf16_t*B, float*C)
           c_reg[n][m] = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(a_reg[m], b_reg[n], c_reg[n][m], 0, 0, 0);
         }
       }
-
     }
-    A += BK; 
+    A += BK;
     B += BK;
-    __syncthreads(); // need this before next iteration overwrites LDS
+    __syncthreads();
   }
-  __syncthreads(); 
+  __syncthreads();
   for (int m = 0; m < acc_per_warp_m; m++)
   {
     for (int n = 0; n < acc_per_warp_n; n++)

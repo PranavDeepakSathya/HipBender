@@ -8,19 +8,19 @@
 static constexpr int M = 8192; 
 static constexpr int K = 8192; 
 static constexpr int N = 8192; 
-static constexpr int mma_m = 16; 
-static constexpr int mma_n = 16; 
-static constexpr int mma_k = 16; 
+static constexpr int mma_m = 32; 
+static constexpr int mma_n = 32; 
+static constexpr int mma_k = 8; 
 static constexpr int wavefront_size = 64;
-static constexpr int acc_per_warp_m = 4; 
-static constexpr int acc_per_warp_n = 4; 
-static constexpr int wpb_m = 4; 
-static constexpr int wpb_n = 4; 
+static constexpr int acc_per_warp_m = 2; 
+static constexpr int acc_per_warp_n = 2; 
+static constexpr int wpb_m = 2; 
+static constexpr int wpb_n = 2; 
 static constexpr int WM = mma_m*acc_per_warp_m;  
 static constexpr int WN = mma_n*acc_per_warp_n;
 static constexpr int BM = WM*wpb_m; 
 static constexpr int BN = WN*wpb_n; 
-static constexpr int BK = 64; 
+static constexpr int BK = 16; 
 static constexpr int block_size = wpb_m*wpb_n*wavefront_size;
 static constexpr int GM = M/BM; 
 static constexpr int GN = N/BN; 
@@ -32,7 +32,7 @@ static constexpr int BN_load_iters = BN/rest_threads;
 
 static constexpr uint32_t b_bits = __builtin_ctz(BK * sizeof(__bf16)) - 4;
 static constexpr uint32_t m_base = 4;
-static constexpr uint32_t s_shift = 4;
+static constexpr uint32_t s_shift = 3;
 
 static_assert((BM * BK / 8) % block_size == 0);
 static_assert((BN * BK / 8) % block_size == 0);
@@ -40,6 +40,7 @@ static_assert((BN * BK / 8) % block_size == 0);
 typedef __bf16 bf16_t;
 typedef __bf16 bf16x4_t __attribute__((ext_vector_type(4)));
 typedef float fp32x4_t __attribute__((ext_vector_type(4)));
+typedef float fp32x16_t __attribute__((ext_vector_type(16)));
 typedef __bf16 bf16x8_t __attribute__((ext_vector_type(8)));
 
 template <int BBits, int MBase, int SShift>
@@ -74,17 +75,17 @@ __global__ void matmul(bf16_t*A, bf16_t*B, float*C)
   __shared__ bf16_t Bs[BK*BN]; 
   bf16x4_t a_reg[acc_per_warp_m]; 
   bf16x4_t b_reg[acc_per_warp_n]; 
-  fp32x4_t c_reg[acc_per_warp_n][acc_per_warp_m] {};
+  fp32x16_t c_reg[acc_per_warp_n][acc_per_warp_m] {};
 
   int inner_k_idx = 8*(t % bk_threads);
   int inner_m_n_idx = (t/bk_threads); 
 
-  int a_lane_row = l % 16; 
-  int a_lane_col = (l / 16) * 4; 
-  int b_lane_row = (l / 16) * 4; 
-  int b_lane_col = l % 16; 
-  int c_lane_row = (l / 16) * 4; 
-  int c_lane_col = l % 16;
+  int a_lane_row = l % 32; 
+  int a_lane_col = (l / 32) * 4; 
+  int b_lane_row = (l / 32) * 4; 
+  int b_lane_col = l % 32; 
+  int c_lane_row = (l / 32) * 4; 
+  int c_lane_col = l % 32;
 
 
   for (int bk = 0; bk < K; bk+=BK)
@@ -125,7 +126,7 @@ __global__ void matmul(bf16_t*A, bf16_t*B, float*C)
       {
         for (int n = 0; n < acc_per_warp_n; n++)
         {
-          c_reg[n][m] = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(a_reg[m], b_reg[n], c_reg[n][m], 0, 0, 0);
+          c_reg[n][m] = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(a_reg[m], b_reg[n], c_reg[n][m], 0, 0, 0);
         }
       }
 
@@ -141,7 +142,11 @@ __global__ void matmul(bf16_t*A, bf16_t*B, float*C)
     {
       int c_row = warp_start_m + m*mma_m + c_lane_row;
       int c_col = warp_start_n + n*mma_n + c_lane_col;
-      *reinterpret_cast<fp32x4_t*>(C + (c_col*M + c_row)) = c_reg[n][m];
+      fp32x4_t* c_out = reinterpret_cast<fp32x4_t*>(&c_reg[n][m]);
+      for (int i = 0; i < 4; i++)
+      {
+        *reinterpret_cast<fp32x4_t*>(C + (c_col*M + c_row + i*8)) = c_out[i];
+      }
     }
   }
 
