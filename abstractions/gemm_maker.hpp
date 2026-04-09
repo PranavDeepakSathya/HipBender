@@ -58,7 +58,7 @@ struct gemmMaker
   int b_s2r_off; 
   int c_r2g_off;
 
-  __device__ SmemLoader(int l, int w, int t) : lane_id(l), warp_id(w), thread_id(t) 
+  __device__ gemmMaker(int l, int w, int t) : lane_id(l), warp_id(w), thread_id(t) 
 
   {
     static constexpr int wpb_n = BN / WN;
@@ -83,33 +83,31 @@ struct gemmMaker
   }
   
   __device__ __forceinline__
-  void load_A_g2s(const bf16_t* A_global, bf16_t* As, int bk_idx) 
+  void load_A_g2s(const bf16_t* A_global, bf16_t* As, bf16x8_t a_ld_reg, int bk_idx) 
   {
-    bf16x8_t a_ld_reg;
     int a_g2r_with_bk_off = a_g2r_off + (bk_idx*BK);
-    
     for (int m_it = 0; m_it < bm_iters; m_it++)
     {
       int m_start = m_it*rest_threads; // just cause we might pipe later and need iter idx
       a_ld_reg = *reinterpret_cast<const bf16x8_t*>(A_global + a_g2r_with_bk_off + (m_start*K)); 
       lane_half_swap<SwapXorMask>(a_ld_reg,lane_id);
       uint32_t a_st_off = swizzle<b_bits,m_base,s_shift>((a_r2s_off + (m_start*BK))*sizeof(__bf16));
+      __syncthreads();
       *reinterpret_cast<bf16x8_t*>((char*)As + a_st_off) = a_ld_reg;
     }
   }
 
   __device__ __forceinline__
-  void load_B_g2s(const bf16_t* B_global, bf16_t* Bs, int bk_idx) 
+  void load_B_g2s(const bf16_t* B_global, bf16_t* Bs, bf16x8_t b_ld_reg, int bk_idx) 
   {
-    bf16x8_t b_ld_reg; 
     int b_g2r_with_bk_off = b_g2r_off + (bk_idx*BK);
-    
     for (int n_it = 0; n_it < bn_iters; n_it++)
     {
       int n_start = n_it*rest_threads; 
       b_ld_reg = *reinterpret_cast<const bf16x8_t*>(B_global + b_g2r_with_bk_off + (n_start*K));
       lane_half_swap<SwapXorMask>(b_ld_reg,lane_id);
       uint32_t b_st_off = swizzle<b_bits,m_base,s_shift>((b_r2s_off + (n_start*BK))*sizeof(__bf16));
+      __syncthreads();
       *reinterpret_cast<bf16x8_t*>((char*)Bs + b_st_off) = b_ld_reg;
     }
     
