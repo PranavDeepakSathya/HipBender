@@ -43,7 +43,7 @@ struct gemmMaker
   static constexpr int s_shift = 3;
   static constexpr int SwapXorMask = (MMA_M == 32) ? 1 : 2;
   static constexpr int wk_iters = BK / (2 * MMA_K); //just remember that we do 2 MMA_K per iter at once. 
-
+  
 
   using c_elem_t = std::conditional_t<MMA_M == 32, fp32x16_t, fp32x4_t>; 
 
@@ -82,6 +82,69 @@ struct gemmMaker
 
   }
   
+  __device__ __forceinline__ 
+  void load_A_g2r(const bf16_t* A_global, bf16x8_t a_ld_reg[bm_iters], int bk_idx)
+  {
+    int a_g2r_with_bk_off = a_g2r_off + (bk_idx*BK);
+    for (int m_it = 0; m_it < bm_iters; m_it++)
+    {
+      int m_start = m_it*rest_threads; // just cause we might pipe later and need iter idx
+      a_ld_reg[m_it] = *reinterpret_cast<const bf16x8_t*>(A_global + a_g2r_with_bk_off + (m_start*K)); 
+    }
+  }
+
+  __device__ __forceinline__
+  void load_B_g2r(const bf16_t* B_global,bf16x8_t b_ld_reg[bn_iters], int bk_idx) 
+  {
+    int b_g2r_with_bk_off = b_g2r_off + (bk_idx*BK);
+    for (int n_it = 0; n_it < bn_iters; n_it++)
+    {
+      int n_start = n_it*rest_threads; 
+      b_ld_reg[n_it] = *reinterpret_cast<const bf16x8_t*>(B_global + b_g2r_with_bk_off + (n_start*K));
+    }
+  }
+
+  __device__ __forceinline__
+  void swap_a_reg(bf16x8_t a_ld_reg[bm_iters])
+  {
+    for (int m_it = 0; m_it < bm_iters; m_it++)
+    {
+      lane_half_swap<SwapXorMask>(a_ld_reg[m_it],lane_id);
+    }
+  }
+
+  __device__ __forceinline__
+  void swap_b_reg(bf16x8_t b_ld_reg[bn_iters])
+  {
+    for (int n_it = 0; n_it < bn_iters; n_it++)
+    {
+      lane_half_swap<SwapXorMask>(b_ld_reg[n_it],lane_id);
+    }
+  }
+
+  __device__ __forceinline__
+  void store_A_r2s(bf16_t* As, bf16x8_t a_ld_reg[bm_iters])
+  {
+    for (int m_it = 0; m_it < bm_iters; m_it++)
+    {
+      int m_start = m_it*rest_threads; // just cause we might pipe later and need iter idx
+      uint32_t a_st_off = swizzle<b_bits,m_base,s_shift>((a_r2s_off + (m_start*BK))*sizeof(__bf16));
+      *reinterpret_cast<bf16x8_t*>((char*)As + a_st_off) = a_ld_reg[m_it];
+    }
+  }
+
+  __device__ __forceinline__
+  void store_B_r2s(bf16_t* Bs, bf16x8_t b_ld_reg[bn_iters])
+  {
+    for (int n_it = 0; n_it < bn_iters; n_it++)
+    {
+      int n_start = n_it*rest_threads; 
+      uint32_t b_st_off = swizzle<b_bits,m_base,s_shift>((b_r2s_off + (n_start*BK))*sizeof(__bf16));
+      *reinterpret_cast<bf16x8_t*>((char*)Bs + b_st_off) = b_ld_reg[n_it];
+    }
+  }
+
+
   __device__ __forceinline__
   void load_A_g2s(const bf16_t* A_global, bf16_t* As, bf16x8_t a_ld_reg, int bk_idx) 
   {
