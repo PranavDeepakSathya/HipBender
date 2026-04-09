@@ -13,6 +13,8 @@ static constexpr int N = 32;
 static constexpr int K = 16; 
 
 
+
+
 typedef __bf16 bf16_t;
 typedef __bf16 bf16x4_t __attribute__((ext_vector_type(4)));
 typedef __bf16 bf16x8_t __attribute__((ext_vector_type(8)));
