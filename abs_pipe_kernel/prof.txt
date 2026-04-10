@@ -1,0 +1,93 @@
+
+╔═══════════════════════════════════════════════════════════╗
+║               MATMUL FULL PROFILE REPORT                  ║
+╠═══════════════════════════════════════════════════════════╣
+║  TIMING & THROUGHPUT                                      ║
+║    Duration                     2.995 ms                   ║
+║    TFLOPS                       367.2                      ║
+║    Peak % (1307 TF)             28.1%                      ║
+╠═══════════════════════════════════════════════════════════╣
+║  REGISTERS & RESOURCES                                    ║
+║    Arch VGPR                      116                      ║
+║    Accum VGPR                       4                      ║
+║    SGPR                           112                      ║
+║    LDS/workgroup                65536 bytes                ║
+║    Occupancy (waves/CU)          0.00                      ║
+╠═══════════════════════════════════════════════════════════╣
+║  WAVE HEALTH                                              ║
+║    Total waves                     16,384                ║
+║    Full waves (64 lanes)           16,384                ║
+║    Partial (<64)                        0                ║
+╠═══════════════════════════════════════════════════════════╣
+║  LDS HEALTH                                               ║
+║    Bank conflicts                       0                ║
+║    Addr conflicts                       0                ║
+║    LDS instructions            75,497,472                ║
+║    Conflicts/wave                       0                ║
+║    Conflicts/LDS op                   0.0                ║
+╠═══════════════════════════════════════════════════════════╣
+║  INSTRUCTION MIX                                          ║
+║    Total                      413,794,304                ║
+║    VALU                       219,856,896                ║
+║    SALU                        34,144,256                ║
+║    MFMA total                 134,217,728                ║
+║    MFMA bf16                  134,217,728                ║
+║    MFMA f16                             0                ║
+║    VMEM read                    8,388,608                ║
+║    VMEM write                     262,144                ║
+║    LDS                         75,497,472                ║
+╠═══════════════════════════════════════════════════════════╣
+║  COMPUTE PIPELINE                                         ║
+║    Wave cycles              4,461,124,629                ║
+║    MFMA busy cycles         2,147,483,648                ║
+║    MFMA utilization                 48.1%                ║
+╠═══════════════════════════════════════════════════════════╣
+║  STALL BREAKDOWN (cycles)                                 ║
+║    Wait any                 1,023,583,381                ║
+║    Active any                 420,007,165                ║
+║    Active VMEM                          0                ║
+║    Active LDS                 148,862,810                ║
+║    Active VALU                219,856,896                ║
+║    Active SCALAR               34,177,024                ║
+║    VMEM read stall              8,388,608                ║
+║    VMEM write stall               262,144                ║
+║    SMEM stall                      32,768                ║
+╠═══════════════════════════════════════════════════════════╣
+║  L1 VECTOR CACHE (TCP)                                    ║
+║    Total accesses                       0                ║
+║    Reads                                0                ║
+║    Writes                               0                ║
+║    Cache accesses                       0                ║
+║    Pending stall cy                     0                ║
+║    Read tag conflict cy                 0                ║
+║    Write tag conflict cy                0                ║
+║    L1->L2 read reqs                     0                ║
+║    L1->L2 write reqs                    0                ║
+║    TLB hits                             0                ║
+║    TLB misses                           0                ║
+║    TLB hit rate                      0.0%                ║
+╠═══════════════════════════════════════════════════════════╣
+║  L2 CACHE (TCC)                                           ║
+║    Requests                             0                ║
+║    Hits                                 0                ║
+║    Misses                               0                ║
+║    Hit rate                          0.0%                ║
+║    Reads                                0                ║
+║    Writes                               0                ║
+║    Writebacks                           0                ║
+║    Busy cycles                          0                ║
+║    Tag stall cycles                     0                ║
+║    Bubble cycles                        0                ║
+║    Write req stall                      0                ║
+║    Too many WR stall                    0                ║
+╠═══════════════════════════════════════════════════════════╣
+║  HBM / DRAM                                               ║
+║    Read requests                        0                ║
+║    Write requests                       0                ║
+║    Read reqs (DRAM)                     0                ║
+║    Write reqs (DRAM)                    0                ║
+║    Read 32B reqs                        0                ║
+║    Write 64B reqs                       0                ║
+║    Read BW (est.)                 0.0 GB/s              ║
+║    Write BW (est.)                0.0 GB/s              ║
+╚═══════════════════════════════════════════════════════════╝

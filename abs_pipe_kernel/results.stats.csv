@@ -1,0 +1,2 @@
+"Name","Calls","TotalDurationNs","AverageNs","Percentage"
+"matmul(std::bfloat16_t*, std::bfloat16_t*, float*) [clone .kd]",6,24813093,4135515,100.0

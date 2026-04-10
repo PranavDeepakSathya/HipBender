@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "../abstractions/gemm_maker.hpp"
-
+#include "../abstractions/tile_scheduler.hpp"
 
 static constexpr int M = 8192; 
 static constexpr int K = 8192; 
@@ -33,7 +33,15 @@ static constexpr int rest_threads = (block_size/bk_threads);
 static constexpr int bm_iters = BM/rest_threads; 
 static constexpr int bn_iters = BN/rest_threads;
 
-
+static constexpr int group_m = 4;
+static constexpr int group_n = 4;
+static_assert(GM % group_m == 0);
+static_assert(GN % group_n == 0);
+static_assert(group_m <= GM);
+static_assert(group_n <= GN);
+static constexpr int blocks_per_group = group_m * group_n;
+static constexpr int G_outer_M = GM / group_m;
+static constexpr int G_outer_N = GN / group_n;
 
 static_assert((BM * BK / 8) % block_size == 0);
 static_assert((BN * BK / 8) % block_size == 0);
@@ -41,15 +49,15 @@ static_assert(BK >= 2*mma_k);
 using c_elem_t = std::conditional_t<mma_m == 32, fp32x16_t, fp32x4_t>;
 
 
-__global__ void matmul(bf16_t*A, bf16_t*B, float*C)
+__global__ __launch_bounds__(block_size, 1) void matmul(bf16_t*A, bf16_t*B, float*C)
 {
   int b = blockIdx.x; 
   int t = threadIdx.x; 
   int w = t/wavefront_size;
   int l = t % wavefront_size; 
 
-  int block_start_m = (b%GM)*BM; 
-  int block_start_n = (b/GM)*BN; 
+  int block_start_m, block_start_n; 
+  tile_sched::block_swizzle<::group_m, ::group_n, ::blocks_per_group, ::G_outer_M, ::G_outer_N, ::BM,::BN>(b,block_start_m,block_start_n);
 
   A += block_start_m*K; //A is k-major 
   B += block_start_n*K; // B is also k-major
@@ -57,8 +65,8 @@ __global__ void matmul(bf16_t*A, bf16_t*B, float*C)
 
   __shared__ bf16_t As[2][BM*BK]; 
   __shared__ bf16_t Bs[2][BK*BN]; 
-  bf16x8_t a_reg[acc_per_warp_m]; 
-  bf16x8_t b_reg[acc_per_warp_n]; 
+  bf16x8_t a_reg[2][acc_per_warp_m]; 
+  bf16x8_t b_reg[2][acc_per_warp_n]; 
   c_elem_t c_reg[acc_per_warp_n][acc_per_warp_m] {};
 
   gemmMaker<mma_m, mma_n, mma_k,
@@ -85,14 +93,20 @@ __global__ void matmul(bf16_t*A, bf16_t*B, float*C)
 
     gemm.load_A_g2r(A, a_ld_reg, bk_idx+1);
     gemm.load_B_g2r(B, b_ld_reg, bk_idx+1);
+    
+    gemm.load_A_s2r(As[stage], a_reg[0], 0);
+    gemm.load_B_s2r(Bs[stage], b_reg[0], 0);
 
-    for (int wk_idx = 0; wk_idx < wk_iters; wk_idx++)
+    for (int wk_idx = 0; wk_idx < wk_iters-1; wk_idx++)
     {
-      gemm.load_A_s2r(As[stage], a_reg, wk_idx);
-      gemm.load_B_s2r(Bs[stage], b_reg, wk_idx); 
-      gemm.mfma(c_reg,a_reg,b_reg);
+      int wk_stage = wk_idx % 2; 
+      int wk_next = (wk_idx + 1) % 2;
+      gemm.load_A_s2r(As[stage], a_reg[wk_next], wk_idx+1);
+      gemm.load_B_s2r(Bs[stage], b_reg[wk_next], wk_idx+1); 
+      gemm.mfma(c_reg,a_reg[wk_stage],b_reg[wk_stage]);
     }
-
+    int wk_stage = (wk_iters-1) % 2; 
+    gemm.mfma(c_reg,a_reg[wk_stage],b_reg[wk_stage]);
     gemm.swap_a_reg(a_ld_reg);
     gemm.swap_b_reg(b_ld_reg);
     gemm.store_A_r2s(As[nxt_stage], a_ld_reg);
@@ -102,12 +116,18 @@ __global__ void matmul(bf16_t*A, bf16_t*B, float*C)
 
   int bk_idx = bk_iters-1;
   int stage = bk_idx % 2; 
-  for (int wk_idx = 0; wk_idx < wk_iters; wk_idx++)
+  gemm.load_A_s2r(As[stage], a_reg[0], 0);
+  gemm.load_B_s2r(Bs[stage], b_reg[0], 0);
+  for (int wk_idx = 0; wk_idx < wk_iters-1; wk_idx++)
   {
-    gemm.load_A_s2r(As[stage], a_reg, wk_idx);
-    gemm.load_B_s2r(Bs[stage], b_reg, wk_idx); 
-    gemm.mfma(c_reg,a_reg,b_reg);
+    int wk_stage = wk_idx % 2; 
+    int wk_next = (wk_idx + 1) % 2;
+    gemm.load_A_s2r(As[stage], a_reg[wk_next], wk_idx+1);
+    gemm.load_B_s2r(Bs[stage], b_reg[wk_next], wk_idx+1); 
+    gemm.mfma(c_reg,a_reg[wk_stage],b_reg[wk_stage]);
   }
+  int wk_stage = (wk_iters-1) % 2; 
+  gemm.mfma(c_reg,a_reg[wk_stage],b_reg[wk_stage]);
 
   __syncthreads();
   gemm.store_C_r2g(C, c_reg);
