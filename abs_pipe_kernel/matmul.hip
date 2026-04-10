@@ -18,7 +18,7 @@ static constexpr int acc_per_warp_n = 4;
 static constexpr int wpb_m = 4; 
 static constexpr int wpb_n = 4; 
 static constexpr int WM = mma_m*acc_per_warp_m;  
-static constexpr int WN = mma_n*acc_per_warp_n;
+static constexpr int WN = mma_n*acc_per_warp_n; 
 static constexpr int BM = WM*wpb_m; 
 static constexpr int BN = WN*wpb_n; 
 static constexpr int BK = 32; 
@@ -33,6 +33,8 @@ static constexpr int rest_threads = (block_size/bk_threads);
 static constexpr int bm_iters = BM/rest_threads; 
 static constexpr int bn_iters = BN/rest_threads;
 
+
+
 static_assert((BM * BK / 8) % block_size == 0);
 static_assert((BN * BK / 8) % block_size == 0);
 static_assert(BK >= 2*mma_k);
@@ -46,8 +48,8 @@ __global__ void matmul(bf16_t*A, bf16_t*B, float*C)
   int w = t/wavefront_size;
   int l = t % wavefront_size; 
 
-  int block_start_m = (b/GN)*BM; 
-  int block_start_n = (b%GN)*BN; 
+  int block_start_m = (b%GM)*BM; 
+  int block_start_n = (b/GM)*BN; 
 
   A += block_start_m*K; //A is k-major 
   B += block_start_n*K; // B is also k-major

@@ -43,6 +43,7 @@
 *.hip.o
 *.hsaco
 build/
+workloads/
 
 # Python
 __pycache__/

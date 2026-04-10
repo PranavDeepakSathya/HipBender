@@ -1,0 +1,10 @@
+Index,KernelName,gpu-id,queue-id,queue-index,pid,tid,grd,wgr,lds,scr,arch_vgpr,accum_vgpr,sgpr,wave_size,sig,obj,SQ_LDS_BANK_CONFLICT,SQ_WAVES
+0,"__amd_rocclr_fillBufferAligned.kd",1,0,0,11736,11736,77824,256,0,0,12,4,48,64,0x0,0x7179ecff3580,0,1216
+1,"__amd_rocclr_fillBufferAligned.kd",1,0,1,11736,11736,77824,256,0,0,12,4,48,64,0x0,0x7179ecff3580,0,1216
+2,"__amd_rocclr_fillBufferAligned.kd",1,0,2,11736,11736,77824,256,0,0,12,4,48,64,0x0,0x7179ecff3580,0,1216
+3,"matmul(std::bfloat16_t*, std::bfloat16_t*, float*) [clone .kd]",1,0,3,11736,11736,1048576,1024,65536,0,116,4,112,64,0x0,0x7179ecfd8600,0,16384
+4,"matmul(std::bfloat16_t*, std::bfloat16_t*, float*) [clone .kd]",1,0,4,11736,11736,1048576,1024,65536,0,116,4,112,64,0x0,0x7179ecfd8600,0,16384
+5,"matmul(std::bfloat16_t*, std::bfloat16_t*, float*) [clone .kd]",1,0,5,11736,11736,1048576,1024,65536,0,116,4,112,64,0x0,0x7179ecfd8600,0,16384
+6,"matmul(std::bfloat16_t*, std::bfloat16_t*, float*) [clone .kd]",1,0,6,11736,11736,1048576,1024,65536,0,116,4,112,64,0x0,0x7179ecfd8600,0,16384
+7,"matmul(std::bfloat16_t*, std::bfloat16_t*, float*) [clone .kd]",1,0,7,11736,11736,1048576,1024,65536,0,116,4,112,64,0x0,0x7179ecfd8600,0,16384
+8,"matmul(std::bfloat16_t*, std::bfloat16_t*, float*) [clone .kd]",1,0,9,11736,11736,1048576,1024,65536,0,116,4,112,64,0x0,0x7179ecfd8600,0,16384
